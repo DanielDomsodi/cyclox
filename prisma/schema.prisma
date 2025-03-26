@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  name           String?
+  email          String?         @unique
+  emailVerified  DateTime?       @db.Timestamptz(6)
+  image          String?
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+  city           String?
+  country        String?
+  sex            String?         @db.VarChar(10)
+  weight         Float?
+  accounts       Account[]
+  activities     Activity[]
+  ftpHistories   FtpHistory[]
+  fitness        Fitness[]
+  appConnections AppConnection[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  refresh_token     String?
+  access_token      String?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+  providerAccountId String
+  expires_at        DateTime? @db.Timestamptz(6)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Activity {
+  id              Int      @id @default(autoincrement())
+  sourceId        String   @unique @db.VarChar(30)
+  source          String   @db.VarChar(100)
+  name            String
+  startDate       DateTime @db.Timestamptz(6)
+  elapsedTime     Int
+  movingTime      Int
+  distance        Float?
+  elevationGain   Float?
+  calories        Int?     @db.SmallInt
+  averageWatts    Int?     @db.SmallInt
+  maxWatts        Int?     @db.SmallInt
+  normalizedPower Int?     @db.SmallInt
+  trainingLoad    Int?     @db.SmallInt
+  averageHR       Int?     @db.SmallInt
+  maxHR           Int?     @db.SmallInt
+  hrLoad          Int?     @db.SmallInt
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+  averageSpeed    Float?
+  maxSpeed        Float?
+  kilojoules      Float?
+  averageCadence  Float?
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+}
+
+model AppConnection {
+  userId            String
+  provider          String
+  providerAccountId String
+  access_token      String
+  refresh_token     String?
+  scope             String?
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+  expires_at        DateTime @db.Timestamptz(6)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model FtpHistory {
+  id            Int      @id @default(autoincrement())
+  ftp           Int      @db.SmallInt
+  effectiveFrom DateTime @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, effectiveFrom])
+}
+
+model Fitness {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  date      DateTime @unique @db.Timestamptz(6)
+  fitness   Float?
+  fatigue   Float?
+  form      Float?
+  acwr      Float?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
