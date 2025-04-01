@@ -9,41 +9,59 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  name           String?
-  email          String?         @unique
-  emailVerified  DateTime?       @db.Timestamptz(6)
-  image          String?
-  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
-  city           String?
-  country        String?
-  sex            String?         @db.VarChar(10)
-  weight         Float?
-  accounts       Account[]
-  activities     Activity[]
-  ftpHistories   FtpHistory[]
-  fitness        Fitness[]
-  appConnections AppConnection[]
+  id                 String              @id @default(cuid())
+  name               String?
+  email              String?             @unique
+  emailVerified      DateTime?           @db.Timestamptz(6)
+  image              String?
+  city               String?
+  country            String?
+  sex                String?             @db.VarChar(10)
+  weight             Float?
+  accounts           Account[]
+  sessions           Session[]
+  activities         Activity[]
+  ftpHistories       FtpHistory[]
+  fitness            Fitness[]
+  serviceConnections ServiceConnection[]
+  createdAt          DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(6)
 }
 
 model Account {
   userId            String
   type              String
   provider          String
+  providerAccountId String
   refresh_token     String?
   access_token      String?
+  expires_at        Int?
   token_type        String?
   scope             String?
   id_token          String?
   session_state     String?
-  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
-  providerAccountId String
-  expires_at        DateTime? @db.Timestamptz(6)
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime @db.Timestamptz(6)
+
+  @@id([identifier, token])
 }
 
 model Activity {
@@ -74,7 +92,7 @@ model Activity {
   user            User?    @relation(fields: [userId], references: [id])
 }
 
-model AppConnection {
+model ServiceConnection {
   userId            String
   provider          String
   providerAccountId String
