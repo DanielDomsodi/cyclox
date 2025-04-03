@@ -16,6 +16,7 @@ export function getApiUrl(path = '') {
  * @param params - Object containing key-value pairs to serialize
  * @returns URLSearchParams object with the serialized parameters
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeQueryParams(params: any): URLSearchParams {
   // TODO: Improve query parameter serialization to handle nested objects and arrays
   const searchParams = new URLSearchParams();

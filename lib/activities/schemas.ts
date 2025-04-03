@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 
-type ActivityType = Prisma.ActivityGetPayload<{}>;
+type ActivityType = Prisma.ActivityGetPayload<Record<string, unknown>>;
 
 export const activitySchema = z.object({
   id: z.number().int().positive(),

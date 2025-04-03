@@ -159,9 +159,11 @@ async function exchangeStravaToken<
     const data = await response.data;
 
     if (grantType === 'refresh_token') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return stravaRefreshTokenSchema.parse(data) as any;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return stravaAuthTokenSchema.parse(data) as any;
   } catch (error) {
     console.error('Error sending Strava OAuth request:', error);
@@ -214,7 +216,6 @@ async function getActivityStream(
     key_by_type: true,
   }
 ) {
-  console.log('### get activity stream', userId, activityId, params);
   const token = await getToken(userId);
   const query = serializeQueryParams(params);
   const url = `/activities/${activityId}/streams?${query.toString()}`;
@@ -266,8 +267,6 @@ async function getActivityStreams(userId: string, activityIds: number[]) {
       i,
       i + STRAVA_RATE_LIMIT.requestsPerBatch
     );
-
-    const token = await getToken(userId);
 
     // Use Promise.allSettled to handle individual request failures
     const batchPromises = batchIds.map((id) =>

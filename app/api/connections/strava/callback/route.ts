@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
-  const error = searchParams.get('error');
 
   if (!code) {
     return new Response('Invalid request', { status: 400 });

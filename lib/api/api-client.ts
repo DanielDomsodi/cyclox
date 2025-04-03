@@ -11,6 +11,7 @@ type ContentType = 'json' | 'urlencoded' | 'multipart';
 
 export interface FetchOptions extends RequestInit {
   contentType?: ContentType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
 }
 
@@ -83,6 +84,7 @@ export async function fetchApi<Response>(
     });
 
     // Handle JSON and non-JSON responses
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let responseData: any;
     const contentTypeHeader = response.headers.get('Content-Type');
 
@@ -115,6 +117,7 @@ export async function fetchApi<Response>(
 export const api = {
   get: <Response>(
     url: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     params?: Record<string, any>,
     options?: RequestInit
   ) => {
@@ -127,6 +130,7 @@ export const api = {
     });
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   post: <Response>(url: string, data?: any, options?: FetchOptions) => {
     return fetchApi<Response>(url, {
       method: 'POST',
