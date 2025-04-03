@@ -1,15 +1,26 @@
 import { serverEnv } from '@/lib/env/server-env';
 import { prisma } from '@/lib/db/prisma';
-import { getApiUrl } from '@/lib/utils/urls';
+import { getApiUrl, serializeQueryParams } from '@/lib/utils/urls';
 import { ServiceConnection } from '@prisma/client';
 import {
   StravaAuthToken,
   stravaAuthTokenSchema,
   StravaRefreshToken,
   stravaRefreshTokenSchema,
-} from './schemas';
+} from './schemas/auth';
 import { api } from '@/lib/api/api-client';
-import { BASE_STRAVA_API_URL, fetchStravaApi } from './api';
+import { BASE_STRAVA_API_URL, fetchStravaApi, STRAVA_RATE_LIMIT } from './api';
+import {
+  StravaActivitiesParams,
+  StravaActivityStreamParams,
+} from './types/activities';
+import {
+  StravaActivity,
+  stravaActivitySchema,
+  StravaActivityStream,
+  stravaActivityStreamSchema,
+} from './schemas/activities';
+import { z } from 'zod';
 
 function createAuthUrl() {
   const redirectUri = getApiUrl('/connections/strava/callback');
@@ -190,14 +201,134 @@ async function saveStravaConnection(data: StravaAuthToken, userId: string) {
   });
 }
 
-async function getStravaAthlete(userId: string) {
+async function getAthlete(userId: string) {
   const token = await getToken(userId);
   return await fetchStravaApi('/athlete', token);
+}
+
+async function getActivityStream(
+  userId: string,
+  activityId: number,
+  params: StravaActivityStreamParams = {
+    keys: ['watts', 'heartrate'],
+    key_by_type: true,
+  }
+) {
+  console.log('### get activity stream', userId, activityId, params);
+  const token = await getToken(userId);
+  const query = serializeQueryParams(params);
+  const url = `/activities/${activityId}/streams?${query.toString()}`;
+
+  const response = await fetchStravaApi<StravaActivityStream>(url, token);
+
+  console.log('### getActivityStream res', response);
+
+  return stravaActivityStreamSchema.parse(response);
+}
+
+async function getActivities(userId: string, params: StravaActivitiesParams) {
+  const token = await getToken(userId);
+  const query = serializeQueryParams(params);
+  const url = `/athlete/activities?${query.toString()}`;
+
+  const response = await fetchStravaApi<StravaActivity[]>(url, token).then(
+    (activities) =>
+      activities.filter(
+        (activity) =>
+          activity.type === 'Ride' || activity.type === 'VirtualRide'
+      )
+  );
+
+  return z.array(stravaActivitySchema).parse(response);
+}
+
+async function getActivity(userId: string, id: string) {
+  const token = await getToken(userId);
+  const url = `/activities/${id}?include_all_efforts=false`;
+
+  const response = await fetchStravaApi<StravaActivity>(url, token);
+
+  return stravaActivitySchema.parse(response);
+}
+
+// TODO: Extend this to support query params
+async function getActivityStreams(userId: string, activityIds: number[]) {
+  const results: Record<string, StravaActivityStream | null> = {};
+  const failedIds: number[] = [];
+
+  // Process in batches to respect rate limits
+  for (
+    let i = 0;
+    i < activityIds.length;
+    i += STRAVA_RATE_LIMIT.requestsPerBatch
+  ) {
+    const batchIds = activityIds.slice(
+      i,
+      i + STRAVA_RATE_LIMIT.requestsPerBatch
+    );
+
+    const token = await getToken(userId);
+
+    // Use Promise.allSettled to handle individual request failures
+    const batchPromises = batchIds.map((id) =>
+      getActivityStream(userId, id).catch((error) => {
+        // TODO: Handle properly the 'Resource not found' error
+        /**
+         * Returns null for 'Resource Not Found' errors as this is valid in our app
+         * (activity may have been deleted on Strava).
+         * Other errors are logged and rethrown.
+         */
+        if (error instanceof Error) {
+          if (error.message.includes('Resource Not Found')) {
+            console.warn(
+              `Activity stream not found on Strava for activity ${id}: ${error.message}`
+            );
+            return null;
+          }
+        }
+
+        throw error;
+      })
+    );
+    const batchResults = await Promise.allSettled(batchPromises);
+
+    // Process results from this batch
+    batchResults.forEach((result, index) => {
+      const activityId = batchIds[index];
+      if (result.status === 'fulfilled') {
+        results[activityId] = result.value;
+      } else {
+        failedIds.push(activityId);
+        console.error(
+          `Failed to fetch stream for activity ${activityId}:`,
+          result.reason
+        );
+      }
+    });
+
+    // If there are more batches to process, wait before the next batch
+    if (i + STRAVA_RATE_LIMIT.requestsPerBatch < activityIds.length) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, STRAVA_RATE_LIMIT.delayBetweenBatches)
+      );
+    }
+  }
+
+  return {
+    successCount: Object.keys(results).length,
+    failedCount: failedIds.length,
+    failedIds,
+    data: results,
+  };
 }
 
 export const stravaService = {
   createAuthUrl,
   connect,
   revoke,
-  getStravaAthlete,
+  getAthlete,
+  getActivityStream,
+  getActivityStreams,
+  getActivities,
+  getActivity,
 };

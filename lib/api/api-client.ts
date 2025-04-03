@@ -1,3 +1,5 @@
+import { serializeQueryParams } from '../utils/urls';
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T | null;
@@ -116,21 +118,10 @@ export const api = {
     params?: Record<string, any>,
     options?: RequestInit
   ) => {
-    let queryUrl = new URL(url);
+    const query = serializeQueryParams(params);
+    const queryUrl = query ? `${url}?${query.toString()}` : url;
 
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach((v) => {
-            queryUrl.searchParams.append(key, String(v));
-          });
-        } else {
-          queryUrl.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    return fetchApi<Response>(queryUrl.toString(), {
+    return fetchApi<Response>(queryUrl, {
       method: 'GET',
       ...options,
     });

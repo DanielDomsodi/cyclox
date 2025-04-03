@@ -1,7 +1,10 @@
+import { activitiesSyncService } from '@/lib/activities/services';
 import { prisma } from '@/lib/db/prisma';
 import { serverEnv } from '@/lib/env/server-env';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { connectionsRepository } from '../../services';
+import { activitiesRepository } from '@/lib/activities/repository';
 
 /**
  * Strava webhook example:
@@ -61,6 +64,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/* TODO: Implement the missing event types
+ - Improve error handling
+ - Add logging for all events
+*/
+
 export async function POST(request: NextRequest) {
   console.log('Received Strava webhook event');
 
@@ -114,6 +122,79 @@ export async function POST(request: NextRequest) {
           }`
         );
       }
+    }
+
+    if (aspect_type === 'create' && object_type === 'activity') {
+      const connection = await connectionsRepository.findUnique({
+        provider_providerAccountId: {
+          provider: 'strava',
+          providerAccountId: owner_id.toString(),
+        },
+      });
+
+      if (!connection) {
+        console.error(
+          `No Strava connection found for account ${owner_id}, skipping sync`
+        );
+        return NextResponse.json(
+          { error: 'Connection not found' },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const userId = connection?.userId;
+
+        if (!userId) {
+          console.error(
+            `No user ID found for Strava account ${object_id}, skipping sync`
+          );
+
+          return NextResponse.json(
+            { error: 'User ID not found' },
+            { status: 400 }
+          );
+        }
+
+        await activitiesSyncService.syncActivity(userId, String(object_id));
+        console.log(
+          `Successfully processed Strava activity creation for user ${userId}`
+        );
+      } catch (error) {
+        console.error(
+          `Error processing Strava activity creation: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+
+    if (aspect_type === 'delete' && object_type === 'activity') {
+      try {
+        const deletedActivity = await activitiesRepository.deleteBySourceId(
+          String(object_id)
+        );
+
+        if (deletedActivity) {
+          console.log(
+            `Successfully deleted Strava activity with ID ${object_id}`
+          );
+        } else {
+          console.warn(
+            `No activity found with source ID ${object_id}, nothing to delete`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error processing Strava activity deletion: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+
+    if (aspect_type === 'update' && object_type === 'activity') {
+      // TODO: Implement activity update handling - schema validation -> process activity -> save
     }
 
     return NextResponse.json('EVENT_RECEIVED', { status: 200 });

@@ -22,6 +22,9 @@ export const serverEnvSchema = z.object({
   STRAVA_CLIENT_SECRET: z.string(),
   STRAVA_WEBHOOK_VERIFY_TOKEN: z.string(),
 
+  // Cron job
+  CRON_SECRET: z.string().min(32),
+
   // Node environment
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
