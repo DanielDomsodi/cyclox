@@ -18,7 +18,7 @@ function processActivity(
   }
 
   if (normalizedPower && ftp) {
-    trainingLoad = calculateTSS(normalizedPower, activity.elapsedTime, ftp);
+    trainingLoad = calculateTSS(normalizedPower, activity.movingTime, ftp);
   }
 
   if (activity.movingTime > 0 && activity.averageWatts) {

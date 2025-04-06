@@ -222,8 +222,6 @@ async function getActivityStream(
 
   const response = await fetchStravaApi<StravaActivityStream>(url, token);
 
-  console.log('### getActivityStream res', response);
-
   return stravaActivityStreamSchema.parse(response);
 }
 
