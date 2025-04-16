@@ -8,9 +8,6 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const dateRange = activitiesSyncService.parseDateRangeFromRequest(req);
 
-  // TODO: Remove this when the cron job is set up
-  req.headers.set('Authorization', 'Bearer ' + serverEnv.CRON_SECRET);
-
   const isAuthorized = activitiesSyncService.isAuthorizedCron(req);
 
   if (!isAuthorized) {

@@ -20,7 +20,9 @@ export const dateYYYYMMDDSchema = z
 export const dateRangeSchema = z
   .object({
     startDate: dateYYYYMMDDSchema,
-    endDate: dateYYYYMMDDSchema.optional().nullable(),
+    endDate: dateYYYYMMDDSchema
+      .optional()
+      .default(new Date().toISOString().split('T')[0]),
   })
   .refine((data) => (data.endDate ? data.startDate <= data.endDate : true), {
     message: 'End date must be after start date',

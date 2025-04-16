@@ -43,6 +43,11 @@ function isAuthorizedCron(req: NextRequest) {
   );
 }
 
+function isDryRun(req: NextRequest) {
+  const searchParams = req.nextUrl.searchParams;
+  return searchParams.get('dryRun') === 'true';
+}
+
 async function syncActivities(dateRange: DateRange) {
   const startTime = Date.now();
   const limit = pLimit(5);
@@ -310,6 +315,7 @@ function aggregateResults(
 export const activitiesSyncService = {
   isAuthorizedCron,
   parseDateRangeFromRequest,
+  isDryRun,
   syncActivities,
   syncActivity,
 };

@@ -1,5 +1,16 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { ActivityProcess } from './schemas';
+
+async function findMany(
+  filter: Prisma.ActivityFindManyArgs,
+  select: Prisma.ActivitySelect
+) {
+  return prisma.activity.findMany({
+    ...filter,
+    select,
+  });
+}
 
 async function findExistingActivityIdsBySource(
   sourceIds: string[],
@@ -44,6 +55,7 @@ async function updateActivityBySource(
 }
 
 export const activitiesRepository = {
+  findMany,
   createMany,
   create,
   deleteBySourceId,
