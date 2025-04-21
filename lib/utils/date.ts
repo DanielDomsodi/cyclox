@@ -38,19 +38,36 @@ export function parseYYYYMMDD(dateString: string): Date {
 }
 
 /**
- * Gets a date range for the last N days
- * @param days - Number of days to look back
+ * Gets a date range relative to the current date
+ * @param days - Number of days (negative for past, positive for future)
+ * @param anchor - Optional reference date (defaults to current date)
  * @returns Object with startDate and endDate as Date objects
  */
-export function getLastNDaysRange(days: number) {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days);
+export function getDateRange(
+  days: number,
+  anchor?: Date
+): { startDate: Date; endDate: Date } {
+  const referenceDate = anchor || new Date();
 
-  return {
-    startDate,
-    endDate,
-  };
+  if (days === 0) {
+    return {
+      startDate: new Date(referenceDate),
+      endDate: new Date(referenceDate),
+    };
+  }
+
+  // For consistency, always return with earlier date as startDate
+  if (days < 0) {
+    // Past range (e.g., last 7 days)
+    const startDate = new Date(referenceDate);
+    startDate.setDate(referenceDate.getDate() + days); // days is negative
+    return { startDate, endDate: new Date(referenceDate) };
+  } else {
+    // Future range (e.g., next 7 days)
+    const endDate = new Date(referenceDate);
+    endDate.setDate(referenceDate.getDate() + days);
+    return { startDate: new Date(referenceDate), endDate };
+  }
 }
 
 export function getYesterday(date: Date): Date {

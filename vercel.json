@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/handler?job=daily-fitness",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
