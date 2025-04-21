@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.set(key, String(value));
     });
-    console.log('### params + url', { params, url });
 
     const headers = new Headers();
     const authHeader = req.headers.get('Authorization');

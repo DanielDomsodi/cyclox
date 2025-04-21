@@ -12,7 +12,6 @@ import Link from 'next/link';
 export default async function Header() {
   const session = await auth();
   const user = session?.user;
-  console.log('### Header ~ session', session);
 
   return (
     <header className="flex h-16 items-center justify-between px-4">
