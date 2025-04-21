@@ -5,12 +5,12 @@ import {
   isDryRun,
   parseDateRangeFromRequest,
 } from '@/lib/utils/api-request';
-import { NextRequest } from 'next/server';
+import { BetterStackRequest, withBetterStack } from '@logtail/next';
 
 export const dynamic = 'force-dynamic';
 
 // TODO: Implement a generic solution to handle multiple activity sources
-export async function POST(req: NextRequest) {
+export const POST = withBetterStack(async (req: BetterStackRequest) => {
   const LOG_PREFIX = '[ActivitySync]';
 
   try {
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    req.log.info(`${LOG_PREFIX} Activities synced successfully`);
     return Response.json(
       {
         status: 'success',
@@ -71,4 +72,4 @@ export async function POST(req: NextRequest) {
       }
     );
   }
-}
+});

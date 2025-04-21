@@ -5,9 +5,9 @@ import {
   isDryRun,
   parseDateRangeFromRequest,
 } from '@/lib/utils/api-request';
-import { NextRequest } from 'next/server';
+import { BetterStackRequest, withBetterStack } from '@logtail/next';
 
-export async function POST(req: NextRequest) {
+export const POST = withBetterStack(async (req: BetterStackRequest) => {
   const LOG_PREFIX = '[FitnessSync]';
 
   try {
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const isDryRunMode = isDryRun(req);
 
     if (!isAuthorized) {
-      console.warn(`${LOG_PREFIX} Unauthorized access attempt`);
+      req.log.warn(`${LOG_PREFIX} Unauthorized access attempt`);
       return Response.json(
         {
           status: 'error',
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to sync fitness metrics:`, error);
+    req.log.error(`${LOG_PREFIX} Failed to sync fitness metrics:`, { error });
 
     return Response.json(
       {
@@ -55,4 +55,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

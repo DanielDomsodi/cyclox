@@ -17,6 +17,7 @@ import { ActivitiesSyncResultInfo } from '../types';
 import { serviceError, serviceSuccess } from '@/lib/utils/service';
 import pLimit from 'p-limit';
 import { FtpHistory } from '@prisma/client';
+import { logger } from '@/lib/logging/client';
 
 const LOG_PREFIX = '[ActivitySync]';
 
@@ -60,12 +61,12 @@ async function syncActivities(
   const limit = pLimit(syncOptions.concurrencyLimit);
 
   try {
-    console.log(
+    logger.info(
       `${LOG_PREFIX} Starting sync for date range: ${dateRange.startDate.toISOString()} to ${
         dateRange.endDate?.toISOString() || 'now'
       }`
     );
-    console.log(
+    logger.info(
       `${LOG_PREFIX} Mode: ${
         isDryRun ? 'DRY RUN (no changes will be made)' : 'LIVE'
       }`
@@ -76,7 +77,7 @@ async function syncActivities(
     });
 
     if (stravaConnections.length === 0) {
-      console.log(`${LOG_PREFIX} No Strava connections found, nothing to sync`);
+      logger.info(`${LOG_PREFIX} No Strava connections found, nothing to sync`);
       return serviceSuccess<SyncSummary>({
         totalActivities: 0,
         totalCreated: 0,
@@ -88,14 +89,14 @@ async function syncActivities(
       });
     }
 
-    console.log(
+    logger.info(
       `${LOG_PREFIX} Found ${stravaConnections.length} Strava connections to process`
     );
 
     const results = await Promise.allSettled(
       stravaConnections.map((connection, index) =>
         limit(async () => {
-          console.log(
+          logger.info(
             `${LOG_PREFIX} Processing connection ${index + 1}/${
               stravaConnections.length
             } for user ${connection.userId}`
@@ -121,7 +122,7 @@ async function syncActivities(
               if (attempts < syncOptions.retryAttempts) {
                 const delay =
                   syncOptions.retryDelay * Math.pow(2, attempts - 1);
-                console.warn(
+                logger.warn(
                   `${LOG_PREFIX} Retry ${attempts}/${syncOptions.retryAttempts} for user ${connection.userId} after ${delay}ms`
                 );
                 await new Promise((resolve) => setTimeout(resolve, delay));
@@ -130,7 +131,7 @@ async function syncActivities(
           }
 
           // If all retries failed, throw the last error
-          console.error(
+          logger.error(
             `${LOG_PREFIX} Failed to process user ${connection.userId} after ${syncOptions.retryAttempts} attempts`
           );
           throw lastError;
@@ -149,7 +150,7 @@ async function syncActivities(
       (successfulConnections / totalConnections) * 100
     );
 
-    console.log(
+    logger.info(
       `${LOG_PREFIX} Sync completed in ${totalDurationSeconds.toFixed(2)}s\n` +
         `  Connections: ${successfulConnections}/${totalConnections} (${successRate}% success)\n` +
         `  Activities: ${summary.totalActivities} total\n` +
@@ -167,9 +168,9 @@ async function syncActivities(
     const elapsedMs = performance.now() - startTime;
     const errorDuration = elapsedMs / 1000;
 
-    console.error(
+    logger.error(
       `${LOG_PREFIX} Fatal error after ${errorDuration.toFixed(2)}s:`,
-      error instanceof Error ? error.message : String(error)
+      { message: error instanceof Error ? error.message : String(error) }
     );
 
     return serviceError('Failed to sync activities');
@@ -197,7 +198,7 @@ async function syncUserActivities(
   let totalActivities = 0;
   let totalErrors = 0;
 
-  console.log(`${LOG_PREFIX} Processing user ${userId}`);
+  logger.info(`${LOG_PREFIX} Processing user ${userId}`);
 
   try {
     const afterEpoch = dateToUnixTimestampSchema.parse(dateRange.startDate);
@@ -234,14 +235,14 @@ async function syncUserActivities(
     }
 
     totalActivities = allActivities.length;
-    console.log(
+    logger.info(
       `${LOG_PREFIX} User ${userId}: Found ${totalActivities} activities`
     );
 
     // Early return if no activities found
     if (totalActivities === 0) {
       const userDuration = (performance.now() - userStart) / 1000;
-      console.log(
+      logger.info(
         `${LOG_PREFIX} User ${userId} completed in ${userDuration.toFixed(
           2
         )}s (No activities found)`
@@ -285,7 +286,7 @@ async function syncUserActivities(
     const processedActivities: ActivityProcess[] = [];
 
     for (const [batchIndex, activityIdBatch] of activityBatches.entries()) {
-      console.log(
+      logger.info(
         `${LOG_PREFIX} User ${userId}: Processing activity batch ${
           batchIndex + 1
         }/${activityBatches.length}`
@@ -323,7 +324,7 @@ async function syncUserActivities(
 
       const updateCount = processedActivities.length - createCount;
 
-      console.log(
+      logger.info(
         `${LOG_PREFIX} User ${userId}: Dry run complete. Would create ${createCount} and update ${updateCount} activities.`
       );
 
@@ -346,9 +347,11 @@ async function syncUserActivities(
       totalCreated = created;
       totalUpdated = updated;
     } catch (dbError) {
-      console.error(
+      logger.error(
         `${LOG_PREFIX} Database operation error for user ${userId}:`,
-        dbError
+        {
+          message: dbError instanceof Error ? dbError.message : String(dbError),
+        }
       );
       totalErrors++;
 
@@ -357,7 +360,7 @@ async function syncUserActivities(
     }
 
     const userDuration = (performance.now() - userStart) / 1000;
-    console.log(
+    logger.info(
       `${LOG_PREFIX} User ${userId} completed in ${userDuration.toFixed(2)}s ` +
         `(Created: ${totalCreated}, Updated: ${totalUpdated}, Total: ${totalActivities})`
     );
@@ -370,11 +373,11 @@ async function syncUserActivities(
     };
   } catch (error) {
     const userDuration = (performance.now() - userStart) / 1000;
-    console.error(
+    logger.error(
       `${LOG_PREFIX} Error processing user ${userId} after ${userDuration.toFixed(
         2
       )}s:`,
-      error instanceof Error ? error.message : String(error)
+      { message: error instanceof Error ? error.message : String(error) }
     );
 
     totalErrors++;
@@ -398,7 +401,7 @@ function createProcessedActivity(
   );
 
   if (!ftp) {
-    console.warn(
+    logger.warn(
       `[ActivitySync] No FTP found for user ${userId} on activity date ${activity.startDate}`
     );
   }
@@ -421,7 +424,7 @@ async function syncActivity(userId: string, sourceId: string) {
          */
         if (error instanceof Error) {
           if (error.message.includes('Resource Not Found')) {
-            console.warn(
+            logger.warn(
               `Activity stream not found on Strava for activity ${activity.id}: ${error.message}`
             );
             return null;

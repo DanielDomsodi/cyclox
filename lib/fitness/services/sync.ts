@@ -12,6 +12,7 @@ import { formatYYYYMMDD, getYesterday } from '@/lib/utils/date';
 import { serviceError, serviceSuccess } from '@/lib/utils/service';
 import { Prisma } from '@prisma/client';
 import pLimit from 'p-limit';
+import { logger } from '@/lib/logging/client';
 
 interface SyncOptions {
   batchSize: number;
@@ -56,7 +57,7 @@ async function syncFitness(
   };
 
   try {
-    console.log(
+    logger.info(
       `[FitnessSync] Starting sync process${
         isDryRun ? ' (DRY RUN)' : ''
       } for date range: ${dateRange.startDate.toISOString()} to ${dateRange.endDate?.toISOString()}`
@@ -74,7 +75,7 @@ async function syncFitness(
     let processedUsers = 0;
 
     for (const [batchIndex, userBatch] of batches.entries()) {
-      console.log(
+      logger.info(
         `[FitnessSync] Processing batch ${batchIndex + 1}/${batches.length} (${
           userBatch.length
         } users)`
@@ -96,7 +97,7 @@ async function syncFitness(
                 const progressPercent = Math.round(
                   (processedUsers / stats.totalUsers) * 100
                 );
-                console.log(
+                logger.info(
                   `[FitnessSync] Progress: ${progressPercent}% (${processedUsers}/${stats.totalUsers})`
                 );
 
@@ -107,7 +108,7 @@ async function syncFitness(
                 stats.retries++;
 
                 if (retries <= syncOptions.maxRetries) {
-                  console.warn(
+                  logger.warn(
                     `[FitnessSync] Retry ${retries}/${
                       syncOptions.maxRetries
                     } for user ${user.id}: ${
@@ -141,7 +142,7 @@ async function syncFitness(
           stats.success++;
         } else {
           stats.error++;
-          console.error(`[FitnessSync] Error syncing user: ${result.reason}`);
+          logger.error(`[FitnessSync] Error syncing user: ${result.reason}`);
         }
       }
     }
@@ -150,12 +151,12 @@ async function syncFitness(
     const totalDuration = (stats.processingTimeMs / 1000).toFixed(2);
 
     if (isDryRun) {
-      console.log(
+      logger.info(
         `[FitnessSync] Dry run completed in ${totalDuration}s. No changes were made. ` +
           `Success: ${stats.success}, Errors: ${stats.error}, Retries: ${stats.retries}`
       );
     } else {
-      console.log(
+      logger.info(
         `[FitnessSync] Sync completed in ${totalDuration}s. ` +
           `Success: ${stats.success}, Errors: ${stats.error}, Retries: ${stats.retries}, ` +
           `Total Users: ${stats.totalUsers}`
@@ -168,7 +169,7 @@ async function syncFitness(
     });
   } catch (error) {
     stats.processingTimeMs = Math.round(performance.now() - startTime);
-    console.error(
+    logger.error(
       `[FitnessSync] Error during sync: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -183,7 +184,7 @@ async function syncUserFitness(
   isDryRun = false
 ) {
   try {
-    console.log(`[FitnessSync] Starting sync for user ${userId}`);
+    logger.info(`[FitnessSync] Starting sync for user ${userId}`);
 
     const activities = await activitiesRepository.findMany(
       {
@@ -199,7 +200,7 @@ async function syncUserFitness(
       { trainingLoad: true, startDate: true }
     );
 
-    console.log(
+    logger.info(
       `[FitnessSync] User ${userId}: Found ${activities.length} activities in date range`
     );
 
@@ -241,7 +242,7 @@ async function syncUserFitness(
         tsb: prevDayMetrics.form ?? 0,
         date: prevDayMetrics.date,
       };
-      console.log(
+      logger.info(
         `[FitnessSync] User ${userId}: Using previous metrics from ${formatYYYYMMDD(
           initialMetrics.date!
         )}`
@@ -270,7 +271,7 @@ async function syncUserFitness(
     sampleMetrics.forEach((metrics) => {
       const date = formatYYYYMMDD(metrics.date!);
       const acwr = calculateACWR(metrics.atl, metrics.ctl);
-      console.log(
+      logger.info(
         `[FitnessSync] User ${userId} Metric (${date}): ` +
           `Fitness: ${metrics.ctl.toFixed(2)} | ` +
           `Fatigue: ${metrics.atl.toFixed(2)} | ` +
@@ -280,7 +281,7 @@ async function syncUserFitness(
     });
 
     if (isDryRun) {
-      console.log(
+      logger.info(
         `[FitnessSync] User ${userId}: Dry run complete, calculated ${metricsArray.length} metrics`
       );
       return metricsArray;
@@ -317,7 +318,7 @@ async function syncUserFitness(
       }
     }
 
-    console.log(
+    logger.info(
       `[FitnessSync] User ${userId}: Updating ${update.length} metrics, creating ${create.length} metrics`
     );
 
@@ -385,12 +386,12 @@ async function syncUserFitness(
       }
     }
 
-    console.log(
+    logger.info(
       `[FitnessSync] User ${userId}: Successfully synced ${metricsArray.length} metrics`
     );
     return metricsArray;
   } catch (error) {
-    console.error(
+    logger.error(
       `[FitnessSync] Error syncing user ${userId}: ${
         error instanceof Error ? error.message : String(error)
       }`

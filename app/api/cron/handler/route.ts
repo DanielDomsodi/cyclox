@@ -1,9 +1,9 @@
 import { cronJobs } from '@/lib/cron/config';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/lib/types/api';
 import { isAuthorizedCron } from '@/lib/utils/api-request';
-import { NextRequest } from 'next/server';
+import { BetterStackRequest, withBetterStack } from '@logtail/next';
 
-export async function POST(req: NextRequest) {
+export const POST = withBetterStack(async (req: BetterStackRequest) => {
   const LOG_PREFIX = '[FitnessSync]';
 
   try {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const job = searchParams.get('job') as keyof typeof cronJobs;
 
     if (!isAuthorized) {
-      console.warn(`${LOG_PREFIX} Unauthorized access attempt`);
+      req.log.warn(`${LOG_PREFIX} Unauthorized access attempt`);
       return Response.json(
         {
           status: 'error',
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!job) {
-      console.warn(`${LOG_PREFIX} No job specified`);
+      req.log.warn(`${LOG_PREFIX} No job specified`);
       return Response.json(
         {
           status: 'error',
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const jobConfig = cronJobs[job];
 
     if (!jobConfig) {
-      console.warn(`${LOG_PREFIX} Invalid job specified: ${job}`);
+      req.log.warn(`${LOG_PREFIX} Invalid job specified: ${job}`);
       return Response.json(
         {
           status: 'error',
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(
+      req.log.error(
         `${LOG_PREFIX} Job "${job}" failed with status ${response.status}`
       );
       return Response.json(
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.info(`${LOG_PREFIX} Job "${job}" executed successfully`);
+    req.log.info(`${LOG_PREFIX} Job "${job}" executed successfully`);
     return Response.json(
       {
         status: 'success',
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       { status: response.status }
     );
   } catch (error) {
-    console.error(`${LOG_PREFIX} Unexpected error:`, error);
+    req.log.error(`${LOG_PREFIX} Unexpected error:`, { error });
     return Response.json(
       {
         status: 'error',
@@ -102,4 +102,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

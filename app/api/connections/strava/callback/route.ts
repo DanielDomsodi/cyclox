@@ -1,9 +1,10 @@
 import { auth } from '@/auth';
 import { stravaService } from '@/lib/connections/strava/service';
 import { serverEnv } from '@/lib/env/server-env';
-import { NextRequest, NextResponse } from 'next/server';
+import { BetterStackRequest, withBetterStack } from '@logtail/next';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export const GET = withBetterStack(async (request: BetterStackRequest) => {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(`${serverEnv.BASE_URL}/settings?success=true`);
   } catch (error) {
-    console.error('Error connecting to Strava:', error);
+    request.log.error('Error connecting to Strava:', { error });
     return NextResponse.redirect(
       `${serverEnv.BASE_URL}?error=connection_failed`
     );
   }
-}
+});
