@@ -1,15 +1,19 @@
-import { activitiesSyncService } from '@/lib/activities/services';
 import { fitnessSyncService } from '@/lib/fitness/services';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/lib/types/api';
+import {
+  isAuthorizedCron,
+  isDryRun,
+  parseDateRangeFromRequest,
+} from '@/lib/utils/api-request';
 import { NextRequest } from 'next/server';
 
 export async function POST(req: NextRequest) {
   const LOG_PREFIX = '[FitnessSync]';
 
   try {
-    const dateRange = activitiesSyncService.parseDateRangeFromRequest(req);
-    const isAuthorized = activitiesSyncService.isAuthorizedCron(req);
-    const isDryRun = activitiesSyncService.isDryRun(req);
+    const dateRange = parseDateRangeFromRequest(req);
+    const isAuthorized = isAuthorizedCron(req);
+    const isDryRunMode = isDryRun(req);
 
     if (!isAuthorized) {
       console.warn(`${LOG_PREFIX} Unauthorized access attempt`);
@@ -23,13 +27,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await fitnessSyncService.syncFitness(dateRange, isDryRun);
+    const result = await fitnessSyncService.syncFitness(
+      dateRange,
+      isDryRunMode
+    );
 
     return Response.json(
       {
         status: 'success',
         message: `Fitness metrics synced successfully${
-          isDryRun ? ' (dry run)' : ''
+          isDryRunMode ? ' (dry run)' : ''
         }`,
         data: result,
       } satisfies ApiSuccessResponse,

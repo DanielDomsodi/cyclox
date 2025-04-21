@@ -4,13 +4,7 @@ import {
   transformedStravaActivitySchema,
 } from '@/lib/connections/strava/schemas/activities';
 import { stravaService } from '@/lib/connections/strava/service';
-import { serverEnv } from '@/lib/env/server-env';
-import {
-  DateRange,
-  dateRangeSchema,
-  dateToUnixTimestampSchema,
-} from '@/lib/schemas/date';
-import { NextRequest } from 'next/server';
+import { DateRange, dateToUnixTimestampSchema } from '@/lib/schemas/date';
 import { activitiesRepository } from '../repository';
 import {
   ftpHistoriesRepository,
@@ -24,104 +18,252 @@ import { serviceError, serviceSuccess } from '@/lib/utils/service';
 import pLimit from 'p-limit';
 import { FtpHistory } from '@prisma/client';
 
-function parseDateRangeFromRequest(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  const afterDate = searchParams.get('after_date');
-  const beforeDate =
-    searchParams.get('before_date') || new Date().toISOString().split('T')[0];
+const LOG_PREFIX = '[ActivitySync]';
 
-  return dateRangeSchema.parse({
-    startDate: afterDate,
-    endDate: beforeDate,
-  });
+interface SyncOptions {
+  concurrencyLimit: number;
+  batchSize: number;
+  retryAttempts: number;
+  retryDelay: number;
 }
 
-function isAuthorizedCron(req: NextRequest) {
-  const authHeader = req.headers.get('Authorization');
-  return (
-    !!serverEnv.CRON_SECRET && authHeader === `Bearer ${serverEnv.CRON_SECRET}`
-  );
+interface SyncSummary extends ActivitiesSyncResultInfo {
+  totalConnections: number;
+  totalDurationSeconds: number;
+  successRate: number;
 }
 
-function isDryRun(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  return searchParams.get('dry_run') === 'true';
-}
+// TODO: Implement a generic solution to handle multiple activity sources
+// TODO: Write unit tests for this service
+/**
+ * Synchronizes activities from Strava for all users with Strava connections
+ * @param dateRange Date range to sync activities for
+ * @param isDryRun If true, no data will be written to the database
+ * @param options Optional configuration for the sync process
+ */
+async function syncActivities(
+  dateRange: DateRange,
+  isDryRun = false,
+  options: Partial<SyncOptions> = {}
+) {
+  const startTime = performance.now();
 
-async function syncActivities(dateRange: DateRange) {
-  const startTime = Date.now();
-  const limit = pLimit(5);
+  // Default options with sensible values
+  const syncOptions: SyncOptions = {
+    concurrencyLimit: 5,
+    batchSize: 100,
+    retryAttempts: 3,
+    retryDelay: 1000,
+    ...options,
+  };
+
+  const limit = pLimit(syncOptions.concurrencyLimit);
 
   try {
+    console.log(
+      `${LOG_PREFIX} Starting sync for date range: ${dateRange.startDate.toISOString()} to ${
+        dateRange.endDate?.toISOString() || 'now'
+      }`
+    );
+    console.log(
+      `${LOG_PREFIX} Mode: ${
+        isDryRun ? 'DRY RUN (no changes will be made)' : 'LIVE'
+      }`
+    );
+
     const stravaConnections = await connectionsRepository.findMany({
       provider: 'strava',
     });
 
+    if (stravaConnections.length === 0) {
+      console.log(`${LOG_PREFIX} No Strava connections found, nothing to sync`);
+      return serviceSuccess<SyncSummary>({
+        totalActivities: 0,
+        totalCreated: 0,
+        totalUpdated: 0,
+        totalErrors: 0,
+        totalConnections: 0,
+        totalDurationSeconds: 0,
+        successRate: 100,
+      });
+    }
+
+    console.log(
+      `${LOG_PREFIX} Found ${stravaConnections.length} Strava connections to process`
+    );
+
     const results = await Promise.allSettled(
-      stravaConnections.map((connection) =>
-        limit(() => syncUserActivities(connection.userId, dateRange))
+      stravaConnections.map((connection, index) =>
+        limit(async () => {
+          console.log(
+            `${LOG_PREFIX} Processing connection ${index + 1}/${
+              stravaConnections.length
+            } for user ${connection.userId}`
+          );
+
+          let attempts = 0;
+          let lastError: unknown;
+
+          while (attempts < syncOptions.retryAttempts) {
+            try {
+              return await syncUserActivities(
+                connection.userId,
+                dateRange,
+                isDryRun,
+                {
+                  batchSize: syncOptions.batchSize,
+                }
+              );
+            } catch (error) {
+              lastError = error;
+              attempts++;
+
+              if (attempts < syncOptions.retryAttempts) {
+                const delay =
+                  syncOptions.retryDelay * Math.pow(2, attempts - 1);
+                console.warn(
+                  `${LOG_PREFIX} Retry ${attempts}/${syncOptions.retryAttempts} for user ${connection.userId} after ${delay}ms`
+                );
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              }
+            }
+          }
+
+          // If all retries failed, throw the last error
+          console.error(
+            `${LOG_PREFIX} Failed to process user ${connection.userId} after ${syncOptions.retryAttempts} attempts`
+          );
+          throw lastError;
+        })
       )
     );
 
     const summary = aggregateResults(results);
-    const totalDuration = (Date.now() - startTime) / 1000;
+    const elapsedMs = performance.now() - startTime;
+    const totalDurationSeconds = elapsedMs / 1000;
+
+    // Calculate success rate
+    const totalConnections = stravaConnections.length;
+    const successfulConnections = totalConnections - summary.totalErrors;
+    const successRate = Math.round(
+      (successfulConnections / totalConnections) * 100
+    );
 
     console.log(
-      `[ActivitySync] Sync completed in ${totalDuration.toFixed(2)}s:`,
-      summary
+      `${LOG_PREFIX} Sync completed in ${totalDurationSeconds.toFixed(2)}s\n` +
+        `  Connections: ${successfulConnections}/${totalConnections} (${successRate}% success)\n` +
+        `  Activities: ${summary.totalActivities} total\n` +
+        `  Created: ${summary.totalCreated}, Updated: ${summary.totalUpdated}\n` +
+        `  ${isDryRun ? 'DRY RUN - No data was modified' : ''}`
     );
 
     return serviceSuccess({
       ...summary,
-      totalConnections: stravaConnections.length,
-      totalDuration,
+      totalConnections,
+      totalDurationSeconds,
+      successRate,
     });
   } catch (error) {
-    const errorDuration = (Date.now() - startTime) / 1000;
+    const elapsedMs = performance.now() - startTime;
+    const errorDuration = elapsedMs / 1000;
+
     console.error(
-      `[ActivitySync] Fatal error after ${errorDuration.toFixed(2)}s:`,
-      error
+      `${LOG_PREFIX} Fatal error after ${errorDuration.toFixed(2)}s:`,
+      error instanceof Error ? error.message : String(error)
     );
 
     return serviceError('Failed to sync activities');
   }
 }
 
-async function syncUserActivities(userId: string, dateRange: DateRange) {
-  const userStart = Date.now();
+/**
+ * Synchronizes activities for a single user from Strava
+ * @param userId User ID to sync activities for
+ * @param dateRange Date range to sync activities for
+ * @param isDryRun If true, no data will be written to the database
+ * @param options Optional configuration for the sync process
+ */
+async function syncUserActivities(
+  userId: string,
+  dateRange: DateRange,
+  isDryRun = false,
+  options: { batchSize?: number } = {}
+) {
+  const userStart = performance.now();
+  const batchSize = options.batchSize || 100;
 
   let totalCreated = 0;
   let totalUpdated = 0;
   let totalActivities = 0;
   let totalErrors = 0;
 
-  console.log(`[ActivitySync] Processing user ${userId}`);
+  console.log(`${LOG_PREFIX} Processing user ${userId}`);
 
   try {
     const afterEpoch = dateToUnixTimestampSchema.parse(dateRange.startDate);
     const beforeEpoch = dateToUnixTimestampSchema.parse(dateRange.endDate);
 
-    const stravaActivities = await stravaService.getActivities(userId, {
-      after: afterEpoch,
-      before: beforeEpoch,
-      per_page: 100,
-    });
+    // Fetch activities from Strava with pagination support
+    let page = 1;
+    const allActivities: TransformedStravaActivity[] = [];
+    let hasMorePages = true;
 
-    totalActivities += stravaActivities.length;
+    while (hasMorePages) {
+      const activities = await stravaService.getActivities(userId, {
+        after: afterEpoch,
+        before: beforeEpoch,
+        per_page: batchSize,
+        page,
+      });
+
+      if (activities.length === 0) {
+        hasMorePages = false;
+      } else {
+        const transformedBatch = activities.map((activity) =>
+          transformedStravaActivitySchema.parse(activity)
+        );
+
+        allActivities.push(...transformedBatch);
+        page++;
+
+        // Break if we received fewer than the requested number (last page)
+        if (activities.length < batchSize) {
+          hasMorePages = false;
+        }
+      }
+    }
+
+    totalActivities = allActivities.length;
     console.log(
-      `[ActivitySync] User ${userId}: Found ${stravaActivities.length} activities`
+      `${LOG_PREFIX} User ${userId}: Found ${totalActivities} activities`
     );
 
-    const stravaActivityIds = stravaActivities.map((activity) => activity.id);
+    // Early return if no activities found
+    if (totalActivities === 0) {
+      const userDuration = (performance.now() - userStart) / 1000;
+      console.log(
+        `${LOG_PREFIX} User ${userId} completed in ${userDuration.toFixed(
+          2
+        )}s (No activities found)`
+      );
 
-    const transformedActivities = stravaActivities.map((activity) =>
-      transformedStravaActivitySchema.parse(activity)
+      return {
+        totalActivities: 0,
+        totalCreated: 0,
+        totalUpdated: 0,
+        totalErrors: 0,
+      };
+    }
+
+    // Extract activity IDs for efficient querying
+    const stravaActivityIds = allActivities.map(
+      (activity) => activity.sourceId
     );
 
     // Fetch existing activities to determine create vs update operations
     const existingActivities =
       await activitiesRepository.findExistingActivityIdsBySource(
-        stravaActivityIds.map(String),
+        stravaActivityIds,
         'strava'
       );
 
@@ -130,50 +272,116 @@ async function syncUserActivities(userId: string, dateRange: DateRange) {
       existingActivities.map((activity) => [activity.sourceId, activity])
     );
 
-    const [activityStreams, ftpHistories] = await Promise.all([
-      stravaService.getActivityStreams(userId, stravaActivityIds),
-      ftpHistoriesRepository.findMany({ userId }),
-    ]);
+    // Fetch FTP history for this user
+    const ftpHistories = await ftpHistoriesRepository.findMany({ userId });
 
-    const processedActivities = transformedActivities.map((activity) => {
-      const activityStream = activityStreams.data[activity.sourceId];
-      return createProcessedActivity(
-        userId,
-        activity,
-        activityStream,
-        ftpHistories
+    // Process activities in smaller batches for better memory usage and parallelism
+    const activityBatches = [];
+
+    for (let i = 0; i < stravaActivityIds.length; i += batchSize) {
+      activityBatches.push(stravaActivityIds.slice(i, i + batchSize));
+    }
+
+    const processedActivities: ActivityProcess[] = [];
+
+    for (const [batchIndex, activityIdBatch] of activityBatches.entries()) {
+      console.log(
+        `${LOG_PREFIX} User ${userId}: Processing activity batch ${
+          batchIndex + 1
+        }/${activityBatches.length}`
       );
-    });
+      // Fetch activity streams in batches
+      const activityStreams = await stravaService.getActivityStreams(
+        userId,
+        activityIdBatch.map((id) => Number(id))
+      );
 
-    // Prepare create and update operations
-    const {
-      totalCreated: totalCreatedOperation,
-      totalUpdated: totalUpdatedOperation,
-    } = await processBatchOperations(
-      processedActivities,
-      existingActivityIdMap
-    );
+      // Find the activities in this batch
+      const activitiesBatch = allActivities.filter((a) =>
+        activityIdBatch.includes(a.sourceId)
+      );
 
-    totalCreated += totalCreatedOperation;
-    totalUpdated += totalUpdatedOperation;
+      // Process each activity in the batch
+      const batchProcessed = activitiesBatch.map((activity) => {
+        const activityStream = activityStreams.data[activity.sourceId];
+        return createProcessedActivity(
+          userId,
+          activity,
+          activityStream,
+          ftpHistories
+        );
+      });
 
-    const userDuration = (Date.now() - userStart) / 1000;
+      processedActivities.push(...batchProcessed);
+    }
+
+    // In dry run mode, return stats without making changes
+    if (isDryRun) {
+      const createCount = processedActivities.filter(
+        (a) => !existingActivityIdMap.has(String(a.sourceId))
+      ).length;
+
+      const updateCount = processedActivities.length - createCount;
+
+      console.log(
+        `${LOG_PREFIX} User ${userId}: Dry run complete. Would create ${createCount} and update ${updateCount} activities.`
+      );
+
+      return {
+        totalActivities,
+        totalCreated: createCount,
+        totalUpdated: updateCount,
+        totalErrors: 0,
+      };
+    }
+
+    // Process database operations with better error handling
+    try {
+      const { totalCreated: created, totalUpdated: updated } =
+        await processBatchOperations(
+          processedActivities,
+          existingActivityIdMap
+        );
+
+      totalCreated = created;
+      totalUpdated = updated;
+    } catch (dbError) {
+      console.error(
+        `${LOG_PREFIX} Database operation error for user ${userId}:`,
+        dbError
+      );
+      totalErrors++;
+
+      // Re-throw to trigger retry at the higher level
+      throw dbError;
+    }
+
+    const userDuration = (performance.now() - userStart) / 1000;
     console.log(
-      `[ActivitySync] User ${userId} completed in ${userDuration.toFixed(
-        2
-      )}s (Created: ${totalCreatedOperation}, Updated: ${totalUpdatedOperation})`
+      `${LOG_PREFIX} User ${userId} completed in ${userDuration.toFixed(2)}s ` +
+        `(Created: ${totalCreated}, Updated: ${totalUpdated}, Total: ${totalActivities})`
     );
-  } catch (userError) {
-    console.error(`[ActivitySync] Error processing user ${userId}:`, userError);
-    totalErrors++;
-  }
 
-  return {
-    totalActivities,
-    totalCreated,
-    totalUpdated,
-    totalErrors,
-  };
+    return {
+      totalActivities,
+      totalCreated,
+      totalUpdated,
+      totalErrors,
+    };
+  } catch (error) {
+    const userDuration = (performance.now() - userStart) / 1000;
+    console.error(
+      `${LOG_PREFIX} Error processing user ${userId} after ${userDuration.toFixed(
+        2
+      )}s:`,
+      error instanceof Error ? error.message : String(error)
+    );
+
+    totalErrors++;
+
+    // Re-throw error to allow for retry at the parent level
+    throw error;
+  }
 }
 
 function createProcessedActivity(
@@ -313,9 +521,6 @@ function aggregateResults(
 }
 
 export const activitiesSyncService = {
-  isAuthorizedCron,
-  parseDateRangeFromRequest,
-  isDryRun,
   syncActivities,
   syncActivity,
 };

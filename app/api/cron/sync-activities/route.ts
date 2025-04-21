@@ -1,50 +1,61 @@
 import { activitiesSyncService } from '@/lib/activities/services';
+import { ApiErrorResponse, ApiSuccessResponse } from '@/lib/types/api';
+import {
+  isAuthorizedCron,
+  isDryRun,
+  parseDateRangeFromRequest,
+} from '@/lib/utils/api-request';
 import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 // TODO: Implement a generic solution to handle multiple activity sources
-export async function GET(req: NextRequest) {
-  const dateRange = activitiesSyncService.parseDateRangeFromRequest(req);
-
-  const isAuthorized = activitiesSyncService.isAuthorizedCron(req);
-
-  if (!isAuthorized) {
-    console.warn('[ActivitySync] Unauthorized access attempt');
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  console.log(
-    `[ActivitySync] Starting sync process for date range: ${dateRange.startDate.toISOString()} to ${dateRange.endDate?.toISOString()}`
-  );
+export async function POST(req: NextRequest) {
+  const LOG_PREFIX = '[ActivitySync]';
 
   try {
-    const result = await activitiesSyncService.syncActivities(dateRange);
+    const dateRange = parseDateRangeFromRequest(req);
+    const isAuthorized = isAuthorizedCron(req);
+    const isDryRunMode = isDryRun(req);
 
-    if (!result.success) {
-      console.error('[ActivitySync] Failed to sync activities');
-      return new Response(
-        JSON.stringify({
-          status: 'error',
-          message: 'Failed to sync activities',
-        }),
+    if (!isAuthorized) {
+      console.warn(`${LOG_PREFIX} Unauthorized access attempt`);
+      return Response.json(
         {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
+          status: 'error',
+          message: 'Unauthorized access',
+          error: 'Invalid or missing authorization token',
+        } satisfies ApiErrorResponse,
+        { status: 401 }
       );
     }
 
-    return new Response(
-      JSON.stringify({
-        status: 'success',
-        message: 'Activities synced successfully',
-        data: result.data,
-      }),
+    const result = await activitiesSyncService.syncActivities(
+      dateRange,
+      isDryRunMode
+    );
+
+    if (!result.success) {
+      console.error(`${LOG_PREFIX} Failed to sync activities: ${result.error}`);
+      return Response.json(
+        {
+          status: 'error',
+          message: 'Failed to sync activities',
+          error: result.error?.toString() ?? 'Unknown error',
+        } satisfies ApiErrorResponse,
+        { status: 500 }
+      );
+    }
+
+    return Response.json(
       {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }
+        status: 'success',
+        message: `Activities synced successfully${
+          isDryRunMode ? ' (dry run)' : ''
+        }`,
+        data: result.data,
+      } satisfies ApiSuccessResponse,
+      { status: 200 }
     );
   } catch (error) {
     console.error(`[ActivitySync] Failed to sync activities`, error);
