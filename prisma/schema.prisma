@@ -121,7 +121,7 @@ model FtpHistory {
 model Fitness {
   id        Int      @id @default(autoincrement())
   userId    String
-  date      DateTime @unique @db.Timestamptz(6)
+  date      DateTime @db.Date
   fitness   Float?
   fatigue   Float?
   form      Float?
@@ -129,4 +129,6 @@ model Fitness {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
 }

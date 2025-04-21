@@ -45,7 +45,7 @@ function isAuthorizedCron(req: NextRequest) {
 
 function isDryRun(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
-  return searchParams.get('dryRun') === 'true';
+  return searchParams.get('dry_run') === 'true';
 }
 
 async function syncActivities(dateRange: DateRange) {

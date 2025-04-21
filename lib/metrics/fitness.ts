@@ -110,8 +110,7 @@ export function calculateContinuousMetrics(
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  // Set both dates to midnight to ensure correct day comparisons
-  start.setHours(0, 0, 0, 0);
+  // Set end dates to midnight to ensure correct day comparisons
   end.setHours(23, 59, 59, 999);
 
   // Initialize the current metrics with the provided initial metrics
@@ -165,4 +164,62 @@ export function getMetricsArray(
   return Array.from(metricsMap.values()).sort(
     (a, b) => a.date!.getTime() - b.date!.getTime()
   );
+}
+
+/**
+ * Calculate Acute to Chronic Workload Ratio (ACWR)
+ *
+ * ACWR represents the ratio between short-term training load (acute/fatigue)
+ * and long-term training load (chronic/fitness).
+ *
+ * Interpretation:
+ * - 0.80-1.30: Optimal workload and lowest relative injury risk (safe zone)
+ * - 1.50+: Overloading and highest relative injury risk
+ *
+ * @param atl - Acute workload (fatigue) value
+ * @param ctl - Chronic workload (fitness) value
+ * @returns ACWR value or null if inputs are invalid
+ */
+export function calculateACWR(
+  atl: number | null,
+  ctl: number | null
+): number | null {
+  // Handle invalid cases
+  if (atl === null || ctl === null) {
+    return null;
+  }
+
+  // Avoid division by zero or very small values
+  if (ctl <= 0.001) {
+    return null;
+  }
+
+  // Calculate the ratio
+  const acwr = atl / ctl;
+
+  return acwr;
+}
+
+/**
+ * Get the risk level category based on ACWR value
+ *
+ * @param acwr - Acute to Chronic Workload Ratio
+ * @returns A string indicating the risk level
+ */
+export function getACWRRiskLevel(
+  acwr: number | null
+): 'low' | 'moderate' | 'high' | 'unknown' {
+  if (acwr === null) {
+    return 'unknown';
+  }
+
+  if (acwr >= 0.8 && acwr <= 1.3) {
+    return 'low'; // Safe zone
+  } else if (acwr > 1.3 && acwr < 1.5) {
+    return 'moderate'; // Increased risk
+  } else if (acwr >= 1.5) {
+    return 'high'; // High risk
+  } else {
+    return 'low'; // Below 0.8 is generally safe (undertraining)
+  }
 }
