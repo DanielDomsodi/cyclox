@@ -1,5 +1,4 @@
 import { activitiesSyncService } from '@/lib/activities/services';
-import { serverEnv } from '@/lib/env/server-env';
 import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
