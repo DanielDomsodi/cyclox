@@ -54,6 +54,16 @@ async function updateActivityBySource(
   });
 }
 
+async function updateBySourceId(
+  sourceId: string,
+  data: Prisma.ActivityUpdateInput
+) {
+  return prisma.activity.update({
+    where: { sourceId },
+    data,
+  });
+}
+
 export const activitiesRepository = {
   findMany,
   createMany,
@@ -61,4 +71,5 @@ export const activitiesRepository = {
   deleteBySourceId,
   findExistingActivityIdsBySource,
   updateActivityBySource,
+  updateBySourceId,
 };

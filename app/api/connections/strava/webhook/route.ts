@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { connectionsRepository } from '../../services';
 import { activitiesRepository } from '@/lib/activities/repository';
 import { BetterStackRequest, withBetterStack } from '@logtail/next';
+import { stravaActivityUpdateSchema } from '@/lib/connections/strava/schemas/activities';
 
 /**
  * Strava webhook example:
@@ -202,7 +203,29 @@ export const POST = withBetterStack(async (request: BetterStackRequest) => {
     }
 
     if (aspect_type === 'update' && object_type === 'activity') {
-      // TODO: Implement activity update handling - schema validation -> process activity -> save
+      const validatedUpdates = stravaActivityUpdateSchema.parse(updates);
+      try {
+        const updatedActivity = await activitiesRepository.updateBySourceId(
+          String(object_id),
+          { name: validatedUpdates.title }
+        );
+
+        if (updatedActivity) {
+          request.log.info(
+            `Successfully updated Strava activity with ID ${object_id}`
+          );
+        } else {
+          request.log.warn(
+            `No activity found with source ID ${object_id}, nothing to update`
+          );
+        }
+      } catch (error) {
+        request.log.error(
+          `Error processing Strava activity update: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
     }
 
     return NextResponse.json('EVENT_RECEIVED', { status: 200 });

@@ -82,3 +82,10 @@ export const transformedStravaActivitySchema = stravaActivitySchema.transform(
 export type TransformedStravaActivity = z.infer<
   typeof transformedStravaActivitySchema
 >;
+
+export const stravaActivityUpdateSchema = z.object({
+  type: z.string().describe('General type (e.g., Ride, Run)').optional(),
+  title: z.string().optional(),
+});
+
+export type StravaActivityUpdate = z.infer<typeof stravaActivityUpdateSchema>;
