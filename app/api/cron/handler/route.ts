@@ -1,5 +1,4 @@
 import { cronJobs } from '@/lib/cron/config';
-import { ApiErrorResponse, ApiSuccessResponse } from '@/lib/types/api';
 import { isAuthorizedCron } from '@/lib/utils/api-request';
 import { BetterStackRequest, withBetterStack } from '@logtail/next';
 
@@ -13,37 +12,53 @@ export const GET = withBetterStack(async (req: BetterStackRequest) => {
 
     if (!isAuthorized) {
       req.log.warn(`${LOG_PREFIX} Unauthorized access attempt`);
-      return Response.json(
-        {
+      return new Response(
+        JSON.stringify({
           status: 'error',
           message: 'Unauthorized access',
           error: 'Invalid or missing authorization token',
-        },
-        { status: 401 }
+        }),
+        {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
+
     if (!job) {
       req.log.warn(`${LOG_PREFIX} No job specified`);
-      return Response.json(
-        {
+      return new Response(
+        JSON.stringify({
           status: 'error',
           message: 'No job specified',
           error: 'Job parameter is required',
-        },
-        { status: 400 }
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
     const jobConfig = cronJobs[job];
 
     if (!jobConfig) {
       req.log.warn(`${LOG_PREFIX} Invalid job specified: ${job}`);
-      return Response.json(
-        {
+      return new Response(
+        JSON.stringify({
           status: 'error',
           message: 'Invalid job specified',
           error: `Job "${job}" does not exist`,
-        },
-        { status: 400 }
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
 
@@ -72,34 +87,49 @@ export const GET = withBetterStack(async (req: BetterStackRequest) => {
       req.log.error(
         `${LOG_PREFIX} Job "${job}" failed with status ${response.status}`
       );
-      return Response.json(
-        {
+      return new Response(
+        JSON.stringify({
           status: 'error',
           message: `Job "${job}" failed with status ${response.status}`,
           error: data.error || 'Unknown error',
-        } satisfies ApiErrorResponse,
-        { status: response.status }
+        }),
+        {
+          status: response.status,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
 
     req.log.info(`${LOG_PREFIX} Job "${job}" executed successfully`);
-    return Response.json(
-      {
+    return new Response(
+      JSON.stringify({
         status: 'success',
         message: `Job "${job}" executed successfully`,
         data,
-      } satisfies ApiSuccessResponse,
-      { status: response.status }
+      }),
+      {
+        status: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
     );
   } catch (error) {
     req.log.error(`${LOG_PREFIX} Unexpected error:`, { error });
-    return Response.json(
-      {
+    return new Response(
+      JSON.stringify({
         status: 'error',
         message: 'Internal server error',
         error: error instanceof Error ? error.message : 'Unknown error',
-      } satisfies ApiErrorResponse,
-      { status: 500 }
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
     );
   }
 });
