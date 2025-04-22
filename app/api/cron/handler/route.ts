@@ -3,7 +3,7 @@ import { ApiErrorResponse, ApiSuccessResponse } from '@/lib/types/api';
 import { isAuthorizedCron } from '@/lib/utils/api-request';
 import { BetterStackRequest, withBetterStack } from '@logtail/next';
 
-export const POST = withBetterStack(async (req: BetterStackRequest) => {
+export const GET = withBetterStack(async (req: BetterStackRequest) => {
   const LOG_PREFIX = '[FitnessSync]';
 
   try {
