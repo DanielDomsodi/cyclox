@@ -76,12 +76,25 @@ export const GET = withBetterStack(async (req: BetterStackRequest) => {
       headers.set('Authorization', req.headers.get('Authorization') || '');
     }
 
+    req.log.info(`${LOG_PREFIX} Executing job "${job}" with params:`, {
+      params,
+    });
+    req.log.info(`${LOG_PREFIX} Fetching URL: ${url.toString()}`);
+    req.log.info(`${LOG_PREFIX} Headers:`, {
+      headers: Object.fromEntries(headers.entries()),
+    });
+
     const response = await fetch(url.toString(), {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
     });
 
     const data = await response.json();
+
+    req.log.info(`${LOG_PREFIX} Response:`, { data });
 
     if (!response.ok) {
       req.log.error(
