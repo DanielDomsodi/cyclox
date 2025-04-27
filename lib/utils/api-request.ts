@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { serverEnv } from '../env/server-env';
 import { dateRangeSchema } from '../schemas/date';
+import { formatYYYYMMDD } from './date';
 
 /**
  * Extracts and validates date range parameters from a request
@@ -11,12 +12,17 @@ export function parseDateRangeFromRequest(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const afterDate = searchParams.get('after_date');
   const beforeDate =
-    searchParams.get('before_date') || new Date().toISOString().split('T')[0];
+    searchParams.get('before_date') || formatYYYYMMDD(new Date());
 
-  return dateRangeSchema.parse({
+  const dateRange = dateRangeSchema.parse({
     startDate: afterDate,
     endDate: beforeDate,
   });
+
+  // Set the end date to the end of the day
+  dateRange.endDate.setHours(23, 59, 59, 999);
+
+  return dateRange;
 }
 
 /**
