@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { serverEnv } from '../env/server-env';
 import { dateRangeSchema } from '../schemas/date';
-import { formatYYYYMMDD } from './date';
+import { lightFormat } from 'date-fns';
+import { UTCDate } from '@date-fns/utc';
 
 /**
  * Extracts and validates date range parameters from a request
@@ -12,7 +13,7 @@ export function parseDateRangeFromRequest(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const afterDate = searchParams.get('after_date');
   const beforeDate =
-    searchParams.get('before_date') || formatYYYYMMDD(new Date());
+    searchParams.get('before_date') || lightFormat(new UTCDate(), 'yyyy-MM-dd');
 
   const dateRange = dateRangeSchema.parse({
     startDate: afterDate,

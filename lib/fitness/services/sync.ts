@@ -8,11 +8,11 @@ import {
 } from '@/lib/metrics/fitness';
 import { DateRange } from '@/lib/schemas/date';
 import { usersRepository } from '@/lib/users/services';
-import { formatYYYYMMDD, getYesterday } from '@/lib/utils/date';
 import { serviceError, serviceSuccess } from '@/lib/utils/service';
 import { Prisma } from '@prisma/client';
 import pLimit from 'p-limit';
 import { logger } from '@/lib/logging/client';
+import { addDays, lightFormat } from 'date-fns';
 
 interface SyncOptions {
   batchSize: number;
@@ -213,7 +213,7 @@ async function syncUserFitness(
       ctl: 0,
       atl: 0,
       tsb: 0,
-      date: getYesterday(dateRange.startDate),
+      date: addDays(dateRange.startDate, -1),
     };
 
     // Find the most recent metrics before the start date to use as initial values
@@ -243,9 +243,7 @@ async function syncUserFitness(
         date: prevDayMetrics.date,
       };
       logger.info(
-        `[FitnessSync] User ${userId}: Using previous metrics from ${formatYYYYMMDD(
-          initialMetrics.date!
-        )}`
+        `[FitnessSync] User ${userId}: Using previous metrics from ${lightFormat(initialMetrics.date!, 'yyyy-MM-dd')}`
       );
     }
 
@@ -269,7 +267,7 @@ async function syncUserFitness(
           ];
 
     sampleMetrics.forEach((metrics) => {
-      const date = formatYYYYMMDD(metrics.date!);
+      const date = lightFormat(metrics.date!, 'yyyy-MM-dd');
       const acwr = calculateACWR(metrics.atl, metrics.ctl);
       logger.info(
         `[FitnessSync] User ${userId} Metric (${date}): ` +
@@ -301,14 +299,17 @@ async function syncUserFitness(
     });
 
     const existingMetricsMap = new Map(
-      existingMetrics.map((metric) => [formatYYYYMMDD(metric.date), metric])
+      existingMetrics.map((metric) => [
+        lightFormat(metric.date, 'yyyy-MM-dd'),
+        metric,
+      ])
     );
 
     const update: TrainingMetrics[] = [];
     const create: TrainingMetrics[] = [];
 
     for (const metric of metricsArray) {
-      const dateKey = formatYYYYMMDD(metric.date!);
+      const dateKey = lightFormat(metric.date!, 'yyyy-MM-dd');
       const existingMetric = existingMetricsMap.get(dateKey);
 
       if (existingMetric) {
@@ -344,7 +345,7 @@ async function syncUserFitness(
                   where: {
                     userId_date: {
                       userId,
-                      date: new Date(formatYYYYMMDD(metric.date!)),
+                      date: new Date(lightFormat(metric.date!, 'yyyy-MM-dd')),
                     },
                   },
                   data: {
@@ -379,7 +380,7 @@ async function syncUserFitness(
             fatigue: metric.atl,
             form: metric.tsb,
             acwr: calculateACWR(metric.atl, metric.ctl),
-            date: new Date(formatYYYYMMDD(metric.date!)),
+            date: new Date(lightFormat(metric.date!, 'yyyy-MM-dd')),
           })),
           skipDuplicates: true,
         });

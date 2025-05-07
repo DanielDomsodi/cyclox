@@ -2,7 +2,7 @@
  * Training metrics calculation utilities with continuous daily calculations
  */
 
-import { formatYYYYMMDD } from '../utils/date';
+import { lightFormat } from 'date-fns';
 
 export interface TrainingMetrics {
   ctl: number; // Chronic Training Load (Fitness)
@@ -97,7 +97,7 @@ export function calculateContinuousMetrics(
 
   // Fill the tssMap with activities
   activities.forEach((activity) => {
-    const dateString = formatYYYYMMDD(activity.date);
+    const dateString = lightFormat(activity.date, 'yyyy-MM-dd');
     const currentTrainingLoad = trainingLoadMap.get(dateString) || 0;
     const activityTrainingLoad = activity.trainingLoad || 0;
     trainingLoadMap.set(dateString, currentTrainingLoad + activityTrainingLoad);
@@ -119,7 +119,7 @@ export function calculateContinuousMetrics(
   // Iterate through each day in the range
   const currentDate = new Date(start);
   while (currentDate <= end) {
-    const dateString = formatYYYYMMDD(currentDate);
+    const dateString = lightFormat(currentDate, 'yyyy-MM-dd');
 
     // Get TSS for the current day (0 if no activity)
     const dailyTrainingLoad = trainingLoadMap.get(dateString) || 0;
@@ -151,7 +151,7 @@ export function getMetricsForDate(
   metricsMap: Map<string, TrainingMetrics>,
   date: Date
 ): TrainingMetrics | undefined {
-  const dateString = formatYYYYMMDD(date);
+  const dateString = lightFormat(date, 'yyyy-MM-dd');
   return metricsMap.get(dateString);
 }
 

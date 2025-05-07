@@ -1,18 +1,14 @@
 import { z } from 'zod';
-import {
-  formatYYYYMMDD,
-  fromUnixTimestamp,
-  parseYYYYMMDD,
-  toUnixTimestamp,
-} from '../utils/date';
+import { getUnixTime, lightFormat, parseISO } from 'date-fns';
+import { utc, UTCDate } from '@date-fns/utc';
 
 /**
  * Zod schema for a date in YYYY-MM-DD format
  */
 export const dateYYYYMMDDSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
-  .transform((dateStr) => parseYYYYMMDD(dateStr));
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in yyyy-MM-dd format')
+  .transform((dateStr) => parseISO(dateStr, { in: utc }));
 
 /**
  * Zod schema for a date range with YYYY-MM-DD strings
@@ -22,7 +18,7 @@ export const dateRangeSchema = z
     startDate: dateYYYYMMDDSchema,
     endDate: dateYYYYMMDDSchema
       .optional()
-      .default(new Date().toISOString().split('T')[0]),
+      .default(lightFormat(new UTCDate(), 'yyyy-MM-dd')),
   })
   .refine((data) => (data.endDate ? data.startDate <= data.endDate : true), {
     message: 'End date must be after start date',
@@ -32,23 +28,15 @@ export const dateRangeSchema = z
 export type DateRange = z.infer<typeof dateRangeSchema>;
 
 /**
- * Zod schema for UNIX timestamp (as used by Strava API)
- */
-export const unixTimestampSchema = z
-  .number()
-  .int()
-  .transform((timestamp) => fromUnixTimestamp(timestamp));
-
-/**
  * Transform Date to UNIX timestamp for Strava API requests
  */
 export const dateToUnixTimestampSchema = z
   .date()
-  .transform((date) => toUnixTimestamp(date));
+  .transform((date) => getUnixTime(date));
 
 /**
  * Transform Date to YYYY-MM-DD for our API
  */
 export const dateToYYYYMMDDSchema = z
   .date()
-  .transform((date) => formatYYYYMMDD(date));
+  .transform((date) => lightFormat(date, 'yyyy-MM-dd'));

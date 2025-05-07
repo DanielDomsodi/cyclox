@@ -1,7 +1,8 @@
 import { fitnessSyncService } from '@/lib/fitness/services';
 import { isAuthorizedCron } from '@/lib/utils/api-request';
-import { getDateRange, getYesterday } from '@/lib/utils/date';
 import { BetterStackRequest, withBetterStack } from '@logtail/next';
+import { addDays, endOfDay, startOfYesterday } from 'date-fns';
+import { utc, UTCDate } from '@date-fns/utc';
 
 export const GET = withBetterStack(async (req: BetterStackRequest) => {
   const LOG_PREFIX = '[DailyFitnessSync]';
@@ -28,8 +29,8 @@ export const GET = withBetterStack(async (req: BetterStackRequest) => {
       );
     }
 
-    const yesterday = getYesterday(new Date());
-    const nextWeek = getDateRange(7).endDate;
+    const yesterday = startOfYesterday({ in: utc });
+    const nextWeek = endOfDay(addDays(new UTCDate(), 7), { in: utc });
 
     const res = await fitnessSyncService.syncFitness({
       startDate: yesterday,

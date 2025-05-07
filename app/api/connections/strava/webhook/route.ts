@@ -7,6 +7,9 @@ import { connectionsRepository } from '../../services';
 import { activitiesRepository } from '@/lib/activities/repository';
 import { BetterStackRequest, withBetterStack } from '@logtail/next';
 import { stravaActivityUpdateSchema } from '@/lib/connections/strava/schemas/activities';
+import { fitnessSyncService } from '@/lib/fitness/services';
+import { utc, UTCDate } from '@date-fns/utc';
+import { addDays, endOfDay, startOfYesterday } from 'date-fns';
 
 /**
  * Strava webhook example:
@@ -166,6 +169,16 @@ export const POST = withBetterStack(async (request: BetterStackRequest) => {
         }
 
         await activitiesSyncService.syncActivity(userId, String(object_id));
+
+        // Sync fitness metrics for the user
+        const yesterday = startOfYesterday({ in: utc });
+        const nextWeek = endOfDay(addDays(new UTCDate(), 7), { in: utc });
+
+        await fitnessSyncService.syncFitness({
+          startDate: yesterday,
+          endDate: nextWeek,
+        });
+
         request.log.info(
           `Successfully processed Strava activity creation for user ${userId}`
         );
