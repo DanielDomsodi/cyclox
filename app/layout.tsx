@@ -3,8 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
-import Header from './Header';
-import { SWRProvider } from '@/components/SWRProvider';
+import clsx from 'clsx';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,10 +28,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={clsx(
+          'flex h-dvh flex-col bg-neutral-100 text-neutral-900 antialiased',
+          geistSans.variable,
+          geistMono.variable
+        )}
       >
-        <SWRProvider>{children}</SWRProvider>
-        <Header />
+        {children}
         <Analytics />
         <SpeedInsights />
       </body>
