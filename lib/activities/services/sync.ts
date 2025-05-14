@@ -443,9 +443,8 @@ async function syncActivity(userId: string, sourceId: string) {
       ftpHistories
     );
 
-    const createdActivity = await activitiesRepository.create(
-      processedActivity
-    );
+    const createdActivity =
+      await activitiesRepository.create(processedActivity);
 
     return serviceSuccess({
       activity: createdActivity,
