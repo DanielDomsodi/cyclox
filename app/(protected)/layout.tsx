@@ -19,7 +19,6 @@ export default async function ProtectedLayout({
         <Header />
       </header>
       <main className="flex-1 overflow-y-auto p-4">
-        <h1>Protected layout</h1>
         <SWRProvider>{children}</SWRProvider>
       </main>
       <nav className="sticky bottom-0 z-50 row-start-3 h-20 w-full bg-white pb-3">

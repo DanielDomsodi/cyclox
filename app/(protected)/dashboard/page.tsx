@@ -1,4 +1,4 @@
-import { DailyFitness } from '@/app/DailyFitness';
+import { DailyFitness } from './DailyFitness';
 
 export default async function DashboardPage() {
   return (
@@ -6,7 +6,6 @@ export default async function DashboardPage() {
       <section className="flex w-full flex-col gap-6">
         <DailyFitness />
       </section>
-      main
     </main>
   );
 }
