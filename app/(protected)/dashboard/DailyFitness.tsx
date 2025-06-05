@@ -30,7 +30,7 @@ export async function DailyFitness() {
 
         <Card className="w-full gap-1 p-3">
           <div className="flex flex-nowrap justify-between">
-            <span className="text-muted-foreground text-sm">Fatigue</span>
+            <span className="text-muted-foreground text-sm">Form</span>
             <span className="text-muted-foreground text-sm">
               {Math.round(dailyFitness.formChange)}%
             </span>
