@@ -28,24 +28,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={clsx(
-          'flex h-dvh flex-col antialiased',
-          geistSans.variable,
-          geistMono.variable
-        )}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
+        <body
+          className={clsx(
+            'bg-background flex h-dvh flex-col antialiased',
+            geistSans.variable,
+            geistMono.variable
+          )}
         >
           {children}
-        </ThemeProvider>
-        <Analytics />
-        <SpeedInsights />
-      </body>
+          <Analytics />
+          <SpeedInsights />
+        </body>
+      </ThemeProvider>
     </html>
   );
 }

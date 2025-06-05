@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       'A sleek cycling analytics app for tracking rides and optimizing performance',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#f5f5f5',
+    background_color: '#0a0a0a',
+    theme_color: '#0a0a0a',
     icons: [
       {
         src: '/icon-192x192.png',
