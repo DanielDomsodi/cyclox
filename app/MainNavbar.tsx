@@ -33,7 +33,7 @@ export function MainNavbar() {
   const pathname = usePathname();
 
   return (
-    <ul className="flex h-full w-full flex-wrap items-center justify-evenly gap-6 text-neutral-500">
+    <ul className="flex h-full w-full flex-wrap items-center justify-evenly gap-6">
       {links.map((link) => (
         <li key={link.label}>
           <Link
