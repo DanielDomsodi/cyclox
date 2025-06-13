@@ -38,6 +38,15 @@ export function isAuthorizedCron(req: NextRequest) {
   );
 }
 
+export function isAuthorizedDev(req: NextRequest) {
+  const authHeader = req.headers.get('Authorization');
+  return (
+    process.env.NODE_ENV === 'development' &&
+    !!serverEnv.DEV_SECRET &&
+    authHeader === `Bearer ${serverEnv.DEV_SECRET}`
+  );
+}
+
 /**
  * Checks if the request is for a dry run operation
  * @param req Next.js request object

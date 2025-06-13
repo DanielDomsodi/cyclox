@@ -25,6 +25,8 @@ export const serverEnvSchema = z.object({
   // Cron job
   CRON_SECRET: z.string().min(32),
 
+  DEV_SECRET: z.string().min(32),
+
   // Node environment
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
